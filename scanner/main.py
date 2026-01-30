@@ -20,7 +20,7 @@ from rich.panel import Panel
 from rich import box
 
 from .config import validate_config, DATA_DIR, LOGS_DIR, SEND_EMAIL
-from .scanners import EarningsScanner, NewsScanner, MomentumScanner, OptionsScanner
+from .scanners import EarningsScanner, NewsScanner, MomentumScanner, OptionsScanner, MarketContextScanner, TechnicalsScanner
 from .analyzer import ScannerAnalyzer
 from .output.pdf_generator import generate_pdf_report
 from .output.email_sender import send_scan_email
@@ -61,6 +61,13 @@ def run_scan(dry_run: bool = False, verbose: bool = False):
     # Run scanners
     console.print("\n[bold cyan]Running Scanners...[/bold cyan]")
     
+    console.print("[dim]  → Market context...[/dim]")
+    market_scanner = MarketContextScanner()
+    market_context = market_scanner.scan()
+    if market_context:
+        sentiment_emoji = "🟢" if market_context.market_sentiment == "risk_on" else "🔴" if market_context.market_sentiment == "risk_off" else "🟡"
+        console.print(f"[dim]     {sentiment_emoji} SPY {market_context.spy_change_pct:+.1f}% | QQQ {market_context.qqq_change_pct:+.1f}% | VIX {market_context.vix_level}[/dim]")
+    
     console.print("[dim]  → Earnings scanner...[/dim]")
     earnings_scanner = EarningsScanner()
     earnings_results = earnings_scanner.scan(all_tickers)
@@ -76,6 +83,11 @@ def run_scan(dry_run: bool = False, verbose: bool = False):
     momentum_results = momentum_scanner.scan(all_tickers)
     console.print(f"[dim]     Found {len(momentum_results)} momentum signals[/dim]")
     
+    console.print("[dim]  → Technicals scanner...[/dim]")
+    technicals_scanner = TechnicalsScanner()
+    technicals_results = technicals_scanner.scan(all_tickers)
+    console.print(f"[dim]     Found {len(technicals_results)} technical signals[/dim]")
+    
     console.print("[dim]  → Options flow scanner...[/dim]")
     options_scanner = OptionsScanner()
     options_results = options_scanner.scan(all_tickers)
@@ -84,6 +96,15 @@ def run_scan(dry_run: bool = False, verbose: bool = False):
     
     # Verbose output
     if verbose:
+        if market_context:
+            console.print("\n[yellow]Market Context:[/yellow]")
+            console.print(f"  SPY: ${market_context.spy_price} ({market_context.spy_change_pct:+.1f}%)")
+            console.print(f"  QQQ: ${market_context.qqq_price} ({market_context.qqq_change_pct:+.1f}%)")
+            console.print(f"  VIX: {market_context.vix_level} ({market_context.vix_change_pct:+.1f}%)")
+            console.print(f"  Sentiment: {market_context.market_sentiment.upper()}")
+            if market_context.sector_performance:
+                console.print("  Sectors: " + " | ".join([f"{k} {v:+.1f}%" for k, v in market_context.sector_performance.items()]))
+        
         if earnings_results:
             console.print("\n[yellow]Earnings:[/yellow]")
             for e in earnings_results:
@@ -100,6 +121,11 @@ def run_scan(dry_run: bool = False, verbose: bool = False):
             for m in momentum_results:
                 console.print(f"  {m.symbol}: {m.change_pct:+.1f}% - {', '.join(m.signals)}")
         
+        if technicals_results:
+            console.print("\n[yellow]Technicals:[/yellow]")
+            for t in technicals_results:
+                console.print(f"  {t.symbol}: RSI {t.rsi_14} | {', '.join(t.signals)}")
+        
         if options_results:
             console.print("\n[yellow]Options Flow:[/yellow]")
             for o in options_results[:10]:
@@ -113,8 +139,10 @@ def run_scan(dry_run: bool = False, verbose: bool = False):
         earnings=earnings_results,
         news=news_results,
         momentum=momentum_results,
+        technicals=technicals_results,
         options=options_results,
         call_put_ratios=call_put_ratios,
+        market_context=market_context,
         watchlist=watchlist
     )
     console.print(f"[dim]  Found {len(analysis.top_opportunities)} top opportunities[/dim]")

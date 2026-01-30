@@ -5,9 +5,13 @@ import anthropic
 from datetime import datetime
 from typing import List
 
+from typing import Optional
+
 from .config import ANTHROPIC_API_KEY
 from .models import EarningsResult, NewsResult, MomentumResult, ScanAnalysis, Opportunity, WatchlistItem, SectorSummary, SectorNews
 from .scanners.options import OptionsSignal
+from .scanners.market_context import MarketContext
+from .scanners.technicals import TechnicalSignal
 from .data.prompts import SYSTEM_PROMPT, USER_PROMPT_TEMPLATE
 
 
@@ -103,18 +107,74 @@ class ScannerAnalyzer:
         
         return "\n".join(lines)
 
+    def _format_market_context(self, ctx: Optional[MarketContext]) -> str:
+        """Format market context for prompt."""
+        if not ctx:
+            return "Market context unavailable."
+        
+        lines = [
+            f"MARKET OVERVIEW:",
+            f"  SPY (S&P 500): ${ctx.spy_price} ({ctx.spy_change_pct:+.1f}%)",
+            f"  QQQ (Nasdaq): ${ctx.qqq_price} ({ctx.qqq_change_pct:+.1f}%)",
+            f"  VIX (Fear Index): {ctx.vix_level} ({ctx.vix_change_pct:+.1f}%)",
+            f"  Overall Sentiment: {ctx.market_sentiment.upper()}",
+        ]
+        
+        # Risk interpretation
+        if ctx.vix_level > 25:
+            lines.append("  ⚠️ HIGH VIX - Market is fearful, consider reducing position sizes")
+        elif ctx.vix_level < 15:
+            lines.append("  ✅ LOW VIX - Market is calm, favorable for risk-on trades")
+        
+        if ctx.sector_performance:
+            lines.append("\nSECTOR ETF PERFORMANCE:")
+            for etf, change in ctx.sector_performance.items():
+                icon = "▲" if change > 0 else "▼" if change < 0 else "─"
+                lines.append(f"  {etf}: {change:+.1f}% {icon}")
+        
+        return "\n".join(lines)
+
+    def _format_technicals(self, technicals: List[TechnicalSignal]) -> str:
+        """Format technical signals for prompt."""
+        if not technicals:
+            return "No notable technical signals."
+        
+        lines = ["TECHNICAL SIGNALS:"]
+        
+        for t in technicals:
+            rsi_str = f"RSI: {t.rsi_14}" if t.rsi_14 else "RSI: N/A"
+            ma_status = []
+            if t.above_50ma is not None:
+                ma_status.append("Above 50MA" if t.above_50ma else "Below 50MA")
+            if t.above_200ma is not None:
+                ma_status.append("Above 200MA" if t.above_200ma else "Below 200MA")
+            ma_str = ", ".join(ma_status) if ma_status else ""
+            
+            short_str = ""
+            if t.short_percent_float and t.short_percent_float > 5:
+                short_str = f" | Short: {t.short_percent_float:.1f}%"
+            
+            lines.append(f"  {t.symbol}: {rsi_str} | {ma_str}{short_str}")
+            if t.signals:
+                lines.append(f"    → {', '.join(t.signals)}")
+        
+        return "\n".join(lines)
+
     def analyze(
         self,
         earnings: List[EarningsResult],
         news: List[NewsResult],
         momentum: List[MomentumResult],
+        technicals: List[TechnicalSignal] = None,
         options: List[OptionsSignal] = None,
         call_put_ratios: dict = None,
+        market_context: MarketContext = None,
         watchlist: dict = None
     ) -> ScanAnalysis:
         """Analyze scan results and return structured analysis."""
         
         date_str = datetime.now().strftime("%Y-%m-%d")
+        technicals = technicals or []
         options = options or []
         call_put_ratios = call_put_ratios or {}
         watchlist = watchlist or {}
@@ -129,9 +189,11 @@ class ScannerAnalyzer:
         # Build user prompt from template
         user_prompt = USER_PROMPT_TEMPLATE.format(
             date=date_str,
+            market_context=self._format_market_context(market_context),
             earnings=self._format_earnings(earnings),
             news=self._format_news(news),
             momentum=self._format_momentum(momentum),
+            technicals=self._format_technicals(technicals),
             options=self._format_options(options, call_put_ratios),
             sectors=sector_context
         )

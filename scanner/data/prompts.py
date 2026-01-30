@@ -90,8 +90,11 @@ Be direct and actionable. No fluff. Traders reading this have 30 minutes before 
 
 
 # Template for the user prompt sent to Claude
-# Available variables: {date}, {earnings}, {news}, {momentum}, {options}, {sectors}
+# Available variables: {date}, {market_context}, {earnings}, {news}, {momentum}, {technicals}, {options}, {sectors}
 USER_PROMPT_TEMPLATE = """## Market Scan Results - {date}
+
+### MARKET CONTEXT
+{market_context}
 
 ### EARNINGS (Next 5 Days)
 {earnings}
@@ -102,6 +105,9 @@ USER_PROMPT_TEMPLATE = """## Market Scan Results - {date}
 ### MOMENTUM SIGNALS
 {momentum}
 
+### TECHNICAL ANALYSIS
+{technicals}
+
 ### OPTIONS FLOW
 {options}
 
@@ -111,5 +117,12 @@ USER_PROMPT_TEMPLATE = """## Market Scan Results - {date}
 ---
 
 Analyze this data and provide your TOP 3 opportunities for today.
-Pay special attention to unusual options activity - high Volume/OI ratios often signal smart money positioning.
+
+IMPORTANT CONSIDERATIONS:
+- If VIX > 25, be cautious with aggressive setups
+- RSI > 70 = overbought (risky to go long), RSI < 30 = oversold (potential bounce)
+- Stocks below 200 MA are in downtrends - need strong catalyst to go long
+- High short interest + catalyst = potential squeeze
+- Options flow with high Vol/OI often signals smart money positioning
+
 Respond with valid JSON only, no markdown code blocks."""
