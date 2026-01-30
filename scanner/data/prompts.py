@@ -90,11 +90,17 @@ Be direct and actionable. No fluff. Traders reading this have 30 minutes before 
 
 
 # Template for the user prompt sent to Claude
-# Available variables: {date}, {market_context}, {earnings}, {news}, {momentum}, {technicals}, {options}, {sectors}
+# Available variables: {date}, {market_context}, {premarket}, {macro_warnings}, {earnings}, {news}, {momentum}, {technicals}, {options}, {sectors}
 USER_PROMPT_TEMPLATE = """## Market Scan Results - {date}
 
 ### MARKET CONTEXT
 {market_context}
+
+### PRE-MARKET MOVERS
+{premarket}
+
+### ⚠️ MACRO LANDMINES (Next 5 Days)
+{macro_warnings}
 
 ### EARNINGS (Next 5 Days)
 {earnings}
@@ -124,5 +130,7 @@ IMPORTANT CONSIDERATIONS:
 - Stocks below 200 MA are in downtrends - need strong catalyst to go long
 - High short interest + catalyst = potential squeeze
 - Options flow with high Vol/OI often signals smart money positioning
+- PRE-MARKET MOVERS: If a stock not on watchlist is moving significantly, flag it
+- MACRO LANDMINES: If Fed/CPI/Jobs data or major earnings (NVDA, etc.) are imminent, factor this risk into recommendations
 
 Respond with valid JSON only, no markdown code blocks."""

@@ -12,6 +12,7 @@ from .models import EarningsResult, NewsResult, MomentumResult, ScanAnalysis, Op
 from .scanners.options import OptionsSignal
 from .scanners.market_context import MarketContext
 from .scanners.technicals import TechnicalSignal
+from .scanners.premarket import PreMarketMover
 from .data.prompts import SYSTEM_PROMPT, USER_PROMPT_TEMPLATE
 
 
@@ -160,6 +161,20 @@ class ScannerAnalyzer:
         
         return "\n".join(lines)
 
+    def _format_premarket(self, movers: List[PreMarketMover]) -> str:
+        """Format pre-market movers for prompt."""
+        if not movers:
+            return "No significant pre-market moves (±3%)."
+        
+        lines = ["PRE-MARKET MOVERS (±3%+):"]
+        
+        for m in movers[:10]:  # Top 10
+            direction = "🚀" if m.change_pct > 0 else "📉"
+            watchlist_tag = "" if m.on_watchlist else " (NOT ON WATCHLIST - consider adding)"
+            lines.append(f"  {direction} {m.symbol}: {m.change_pct:+.1f}% ${m.price}{watchlist_tag}")
+        
+        return "\n".join(lines)
+
     def analyze(
         self,
         earnings: List[EarningsResult],
@@ -169,6 +184,8 @@ class ScannerAnalyzer:
         options: List[OptionsSignal] = None,
         call_put_ratios: dict = None,
         market_context: MarketContext = None,
+        premarket_movers: List[PreMarketMover] = None,
+        macro_warnings: str = None,
         watchlist: dict = None
     ) -> ScanAnalysis:
         """Analyze scan results and return structured analysis."""
@@ -177,6 +194,8 @@ class ScannerAnalyzer:
         technicals = technicals or []
         options = options or []
         call_put_ratios = call_put_ratios or {}
+        premarket_movers = premarket_movers or []
+        macro_warnings = macro_warnings or "No major macro events in next 5 days."
         watchlist = watchlist or {}
         
         # Build sector context
@@ -190,6 +209,8 @@ class ScannerAnalyzer:
         user_prompt = USER_PROMPT_TEMPLATE.format(
             date=date_str,
             market_context=self._format_market_context(market_context),
+            premarket=self._format_premarket(premarket_movers),
+            macro_warnings=macro_warnings,
             earnings=self._format_earnings(earnings),
             news=self._format_news(news),
             momentum=self._format_momentum(momentum),

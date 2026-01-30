@@ -20,7 +20,7 @@ from rich.panel import Panel
 from rich import box
 
 from .config import validate_config, DATA_DIR, LOGS_DIR, SEND_EMAIL
-from .scanners import EarningsScanner, NewsScanner, MomentumScanner, OptionsScanner, MarketContextScanner, TechnicalsScanner
+from .scanners import EarningsScanner, NewsScanner, MomentumScanner, OptionsScanner, MarketContextScanner, TechnicalsScanner, PreMarketScanner, MacroCalendar
 from .analyzer import ScannerAnalyzer
 from .output.pdf_generator import generate_pdf_report
 from .output.email_sender import send_scan_email
@@ -68,6 +68,24 @@ def run_scan(dry_run: bool = False, verbose: bool = False):
         sentiment_emoji = "🟢" if market_context.market_sentiment == "risk_on" else "🔴" if market_context.market_sentiment == "risk_off" else "🟡"
         console.print(f"[dim]     {sentiment_emoji} SPY {market_context.spy_change_pct:+.1f}% | QQQ {market_context.qqq_change_pct:+.1f}% | VIX {market_context.vix_level}[/dim]")
     
+    console.print("[dim]  → Pre-market movers...[/dim]")
+    premarket_scanner = PreMarketScanner()
+    premarket_movers = premarket_scanner.scan(all_tickers)
+    if premarket_movers:
+        console.print(f"[dim]     Found {len(premarket_movers)} significant movers (±3%)[/dim]")
+    else:
+        console.print(f"[dim]     No significant pre-market moves[/dim]")
+    
+    console.print("[dim]  → Macro calendar...[/dim]")
+    macro_calendar = MacroCalendar()
+    macro_warnings = macro_calendar.format_warnings(days_ahead=5)
+    macro_landmines = macro_calendar.get_landmines(days_ahead=5)
+    num_events = len(macro_landmines.get("economic_events", [])) + len(macro_landmines.get("sector_moving_earnings", []))
+    if num_events > 0:
+        console.print(f"[dim]     ⚠️ {num_events} upcoming events to watch[/dim]")
+    else:
+        console.print(f"[dim]     No major events in next 5 days[/dim]")
+    
     console.print("[dim]  → Earnings scanner...[/dim]")
     earnings_scanner = EarningsScanner()
     earnings_results = earnings_scanner.scan(all_tickers)
@@ -96,6 +114,20 @@ def run_scan(dry_run: bool = False, verbose: bool = False):
     
     # Verbose output
     if verbose:
+        if premarket_movers:
+            console.print("\n[yellow]Pre-Market Movers:[/yellow]")
+            for m in premarket_movers[:10]:
+                emoji = "🚀" if m.change_pct > 0 else "📉"
+                watchlist_tag = "" if m.on_watchlist else " [dim](not on watchlist)[/dim]"
+                console.print(f"  {emoji} {m.symbol}: {m.change_pct:+.1f}%{watchlist_tag}")
+        
+        if macro_landmines.get("economic_events") or macro_landmines.get("sector_moving_earnings"):
+            console.print("\n[yellow]Macro Landmines:[/yellow]")
+            for e in macro_landmines.get("economic_events", [])[:3]:
+                console.print(f"  ⚠️ {e.date}: {e.event}")
+            for e in macro_landmines.get("sector_moving_earnings", [])[:3]:
+                console.print(f"  📊 {e.date}: {e.symbol} earnings")
+        
         if market_context:
             console.print("\n[yellow]Market Context:[/yellow]")
             console.print(f"  SPY: ${market_context.spy_price} ({market_context.spy_change_pct:+.1f}%)")
@@ -143,6 +175,8 @@ def run_scan(dry_run: bool = False, verbose: bool = False):
         options=options_results,
         call_put_ratios=call_put_ratios,
         market_context=market_context,
+        premarket_movers=premarket_movers,
+        macro_warnings=macro_warnings,
         watchlist=watchlist
     )
     console.print(f"[dim]  Found {len(analysis.top_opportunities)} top opportunities[/dim]")
