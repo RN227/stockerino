@@ -1,7 +1,8 @@
 {
-  "ai_semiconductors": ["NVDA", "AMD", "AVGO", "SMCI", "MRVL", "ARM"],
-  "ai_software": ["PLTR", "SNOW", "MDB", "CRWD"],
-  "robotics_defense": ["KTOS", "AVAV", "LMT", "RTX"],
-  "nuclear_energy": ["CCJ", "LEU", "BWXT", "SMR", "VST", "CEG"],
+  "ai_semiconductors": ["NVDA", "AMD", "AVGO", "MRVL", "ARM", "SMCI"],
+  "ai_infrastructure": ["CRWV", "IREN", "BTDR", "CORZ"],
+  "ai_software": ["PLTR", "SNOW", "MDB", "CRWD", "BBAI", "SOUN", "PATH"],
+  "defense_aerospace": ["LMT", "RTX", "KTOS", "AVAV", "LDOS", "RKLB"],
+  "nuclear_energy": ["CCJ", "LEU", "BWXT", "SMR", "OKLO", "VST", "CEG"],
   "quantum_computing": ["IONQ", "RGTI"]
 }

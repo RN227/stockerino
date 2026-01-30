@@ -56,26 +56,31 @@ IMPORTANT: Respond in valid JSON format matching this structure:
                 {"title": "NVIDIA Announces AI Partnership", "url": "https://..."}
             ]
         },
-        "ai_software": {
-            "outlook": "Neutral",
-            "overview": "Cloud and data names consolidating. PLTR earnings approaching.",
+        "ai_infrastructure": {
+            "outlook": "Bullish",
+            "overview": "Data center buildout continues. CRWV and IREN benefiting from AI compute demand.",
             "news": []
         },
-        "robotics_defense": {
+        "ai_software": {
+            "outlook": "Neutral",
+            "overview": "Enterprise AI names consolidating. PLTR earnings approaching.",
+            "news": []
+        },
+        "defense_aerospace": {
             "outlook": "Bullish",
-            "overview": "Defense spending momentum continues with new contracts.",
+            "overview": "Defense spending momentum with new contracts and geopolitical tailwinds.",
             "news": []
         },
         "nuclear_energy": {
             "outlook": "Bullish",
-            "overview": "Policy tailwinds with AI data center power demand narrative.",
+            "overview": "AI data center power demand driving nuclear renaissance narrative.",
             "news": [
                 {"title": "New Uranium Facility Opening", "url": "https://..."}
             ]
         },
         "quantum_computing": {
             "outlook": "Cautious",
-            "overview": "Speculative names pulling back after Q4 run-up.",
+            "overview": "Speculative names pulling back. Long-term thesis intact but near-term volatility.",
             "news": []
         }
     }
