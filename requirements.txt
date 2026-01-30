@@ -1,6 +1,18 @@
+# Core
 anthropic>=0.40.0
 requests>=2.31.0
 python-dotenv>=1.0.0
+pydantic>=2.5.0
+
+# CLI
 rich>=13.7.0
 click>=8.1.0
-pydantic>=2.5.0
+
+# PDF Generation (Scanner)
+reportlab>=4.1.0
+
+# Options Data (Scanner)
+yfinance>=0.2.0
+
+# Email (Scanner)
+resend>=0.7.0

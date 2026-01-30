@@ -1,0 +1,7 @@
+{
+  "ai_semiconductors": ["NVDA", "AMD", "AVGO", "SMCI", "MRVL", "ARM"],
+  "ai_software": ["PLTR", "SNOW", "MDB", "CRWD"],
+  "robotics_defense": ["KTOS", "AVAV", "LMT", "RTX"],
+  "nuclear_energy": ["CCJ", "LEU", "BWXT", "SMR", "VST", "CEG"],
+  "quantum_computing": ["IONQ", "RGTI"]
+}

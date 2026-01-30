@@ -1,0 +1,204 @@
+"""Claude Analyzer for Market Scanner."""
+
+import json
+import anthropic
+from datetime import datetime
+from typing import List
+
+from .config import ANTHROPIC_API_KEY
+from .models import EarningsResult, NewsResult, MomentumResult, ScanAnalysis, Opportunity, WatchlistItem, SectorSummary, SectorNews
+from .scanners.options import OptionsSignal
+from .data.prompts import SYSTEM_PROMPT, USER_PROMPT_TEMPLATE
+
+
+class ScannerAnalyzer:
+    """Analyzes scan results using Claude."""
+
+    def __init__(self):
+        self.client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        self.model = "claude-sonnet-4-20250514"
+
+    def _format_earnings(self, earnings: List[EarningsResult]) -> str:
+        """Format earnings data for prompt."""
+        if not earnings:
+            return "No earnings in the next 5 trading days for watchlist stocks."
+        
+        lines = []
+        for e in earnings:
+            beat_str = f"{e.beat_rate*100:.0f}% beat rate" if e.beat_rate else "No history"
+            surprise_str = f"{e.avg_surprise_pct:+.1f}% avg surprise" if e.avg_surprise_pct else ""
+            time_str = f" ({e.report_time})" if e.report_time else ""
+            
+            lines.append(f"- {e.symbol}: {e.report_date}{time_str}")
+            lines.append(f"  EPS Est: ${e.eps_estimate:.2f}" if e.eps_estimate else "  EPS Est: N/A")
+            lines.append(f"  History: {beat_str} {surprise_str}")
+        
+        return "\n".join(lines)
+
+    def _format_news(self, news: List[NewsResult]) -> str:
+        """Format news data for prompt."""
+        if not news:
+            return "No significant news catalysts in the last 48 hours."
+        
+        lines = []
+        for n in news[:15]:  # Limit to top 15
+            sentiment_icon = "+" if n.sentiment == "bullish" else "-" if n.sentiment == "bearish" else "~"
+            keywords_str = ", ".join(n.keywords_matched[:3])
+            lines.append(f"[{sentiment_icon}] {n.symbol}: {n.title}")
+            lines.append(f"    Source: {n.source} | Keywords: {keywords_str}")
+            lines.append(f"    URL: {n.url}")
+        
+        return "\n".join(lines)
+
+    def _format_momentum(self, momentum: List[MomentumResult]) -> str:
+        """Format momentum data for prompt."""
+        if not momentum:
+            return "No unusual momentum signals detected."
+        
+        lines = []
+        for m in momentum:
+            signals_str = " | ".join(m.signals)
+            lines.append(f"- {m.symbol}: ${m.price:.2f} ({m.change_pct:+.1f}%)")
+            lines.append(f"  Signals: {signals_str}")
+        
+        return "\n".join(lines)
+
+    def _format_options(self, options: List[OptionsSignal], call_put_ratios: dict) -> str:
+        """Format options flow data for prompt."""
+        if not options and not call_put_ratios:
+            return "No unusual options activity detected."
+        
+        lines = []
+        
+        # Group by symbol
+        by_symbol = {}
+        for o in options:
+            if o.symbol not in by_symbol:
+                by_symbol[o.symbol] = []
+            by_symbol[o.symbol].append(o)
+        
+        # Format unusual activity
+        if by_symbol:
+            lines.append("UNUSUAL OPTIONS ACTIVITY:")
+            for symbol, signals in by_symbol.items():
+                # Get strongest signals for this symbol
+                top_signals = sorted(signals, key=lambda x: x.volume_oi_ratio, reverse=True)[:3]
+                for s in top_signals:
+                    direction = "CALL" if s.option_type == "call" else "PUT"
+                    strength = "🔥" if s.signal_strength == "strong" else ""
+                    lines.append(f"  {strength}{symbol}: {s.expiry} ${s.strike} {direction} - Vol: {s.volume:,} / OI: {s.open_interest:,} ({s.volume_oi_ratio}x)")
+        
+        # Format call/put ratios
+        if call_put_ratios:
+            lines.append("\nCALL/PUT VOLUME RATIOS (>1.5 = bullish, <0.7 = bearish):")
+            sorted_ratios = sorted(call_put_ratios.items(), key=lambda x: x[1], reverse=True)
+            for symbol, ratio in sorted_ratios:
+                if ratio > 1.5:
+                    sentiment = "📈 Bullish"
+                elif ratio < 0.7:
+                    sentiment = "📉 Bearish"
+                else:
+                    sentiment = "➡️ Neutral"
+                lines.append(f"  {symbol}: {ratio:.2f} {sentiment}")
+        
+        return "\n".join(lines)
+
+    def analyze(
+        self,
+        earnings: List[EarningsResult],
+        news: List[NewsResult],
+        momentum: List[MomentumResult],
+        options: List[OptionsSignal] = None,
+        call_put_ratios: dict = None,
+        watchlist: dict = None
+    ) -> ScanAnalysis:
+        """Analyze scan results and return structured analysis."""
+        
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        options = options or []
+        call_put_ratios = call_put_ratios or {}
+        watchlist = watchlist or {}
+        
+        # Build sector context
+        sector_lines = ["Sectors being tracked:"]
+        for sector_name, tickers in watchlist.items():
+            display_name = sector_name.replace("_", " ").title()
+            sector_lines.append(f"- {display_name}: {', '.join(tickers)}")
+        sector_context = "\n".join(sector_lines)
+
+        # Build user prompt from template
+        user_prompt = USER_PROMPT_TEMPLATE.format(
+            date=date_str,
+            earnings=self._format_earnings(earnings),
+            news=self._format_news(news),
+            momentum=self._format_momentum(momentum),
+            options=self._format_options(options, call_put_ratios),
+            sectors=sector_context
+        )
+
+        try:
+            response = self.client.messages.create(
+                model=self.model,
+                max_tokens=2000,
+                system=SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": user_prompt}]
+            )
+            
+            response_text = response.content[0].text
+            
+            # Parse JSON response
+            # Try to extract JSON if wrapped in markdown
+            if "```json" in response_text:
+                response_text = response_text.split("```json")[1].split("```")[0]
+            elif "```" in response_text:
+                response_text = response_text.split("```")[1].split("```")[0]
+            
+            data = json.loads(response_text.strip())
+            
+            # Build ScanAnalysis from response
+            opportunities = [
+                Opportunity(**opp) for opp in data.get("top_opportunities", [])
+            ]
+            watchlist_items = [
+                WatchlistItem(**item) for item in data.get("watchlist", [])
+            ]
+            no_action_items = [
+                WatchlistItem(**item) for item in data.get("no_action", [])
+            ]
+            
+            # Parse sector summaries
+            raw_sectors = data.get("sector_summary", {})
+            sector_summaries = {}
+            for sector, info in raw_sectors.items():
+                if isinstance(info, dict):
+                    news_items = [
+                        SectorNews(**n) for n in info.get("news", [])
+                    ]
+                    sector_summaries[sector] = SectorSummary(
+                        outlook=info.get("outlook", "Neutral"),
+                        overview=info.get("overview", ""),
+                        news=news_items
+                    )
+                else:
+                    # Fallback for old string format
+                    sector_summaries[sector] = SectorSummary(
+                        outlook=info.split(" - ")[0] if " - " in str(info) else "Neutral",
+                        overview=str(info),
+                        news=[]
+                    )
+            
+            return ScanAnalysis(
+                scan_date=date_str,
+                top_opportunities=opportunities,
+                watchlist=watchlist_items,
+                no_action=no_action_items,
+                sector_summary=sector_summaries
+            )
+            
+        except json.JSONDecodeError as e:
+            print(f"[Warning] Failed to parse Claude response as JSON: {e}")
+            # Return empty analysis
+            return ScanAnalysis(scan_date=date_str)
+        except anthropic.APIError as e:
+            print(f"[Error] Claude API error: {e}")
+            return ScanAnalysis(scan_date=date_str)

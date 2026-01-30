@@ -1,0 +1,47 @@
+name: Daily Market Scan
+
+on:
+  # Run at 6 AM ET (11:00 UTC) on weekdays
+  schedule:
+    - cron: '0 11 * * 1-5'
+  
+  # Allow manual trigger
+  workflow_dispatch:
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+      
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+      
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements.txt
+      
+      - name: Run Market Scanner
+        env:
+          FINNHUB_API_KEY: ${{ secrets.FINNHUB_API_KEY }}
+          FMP_API_KEY: ${{ secrets.FMP_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SEND_EMAIL: "true"
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          ALERT_EMAIL: ${{ secrets.ALERT_EMAIL }}
+        run: |
+          python -m scanner.main --verbose
+      
+      - name: Upload PDF Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: market-scan-${{ github.run_id }}
+          path: logs/*.pdf
+          retention-days: 30
