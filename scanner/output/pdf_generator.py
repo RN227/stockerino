@@ -83,6 +83,15 @@ def generate_pdf_report(analysis: ScanAnalysis, output_path: str) -> str:
         fontSize=10,
         textColor=colors.HexColor('#c62828')
     ))
+
+    styles.add(ParagraphStyle(
+        name='PortfolioBadge',
+        parent=styles['Normal'],
+        fontSize=9,
+        textColor=colors.HexColor('#b8860b'),
+        spaceBefore=0,
+        spaceAfter=2
+    ))
     
     story = []
     
@@ -101,23 +110,29 @@ def generate_pdf_report(analysis: ScanAnalysis, output_path: str) -> str:
         for opp in analysis.top_opportunities:
             # Conviction bar
             conviction_bar = "█" * opp.conviction + "░" * (10 - opp.conviction)
-            
+
+            # Ticker header with optional portfolio badge
+            header_text = f"#{opp.rank} {opp.ticker} — {opp.company}"
+            story.append(Paragraph(header_text, styles['TickerHeader']))
+
+            if opp.is_portfolio:
+                story.append(Paragraph("★ PORTFOLIO HOLDING", styles['PortfolioBadge']))
+
+            # Setup type label
+            setup_label = "Day Trade" if opp.setup_type == "day_trade" else "Swing"
+            horizon_str = f" &nbsp;&nbsp;|&nbsp;&nbsp; <b>Horizon:</b> {opp.time_horizon}" if opp.time_horizon else ""
+
             story.append(Paragraph(
-                f"#{opp.rank} {opp.ticker} - {opp.company}",
-                styles['TickerHeader']
-            ))
-            
-            story.append(Paragraph(
-                f"<b>Type:</b> {opp.setup_type} &nbsp;&nbsp;|&nbsp;&nbsp; "
+                f"<b>Type:</b> {setup_label}{horizon_str} &nbsp;&nbsp;|&nbsp;&nbsp; "
                 f"<b>Conviction:</b> {conviction_bar} {opp.conviction}/10",
                 styles['ScanBodyText']
             ))
-            
+
             story.append(Paragraph(f"<b>Catalyst:</b> {opp.catalyst}", styles['ScanBodyText']))
             story.append(Paragraph(f"<b>Thesis:</b> {opp.thesis}", styles['ScanBodyText']))
             story.append(Paragraph(f"<b>Trade Setup:</b> {opp.trade_setup}", styles['ScanBodyText']))
             story.append(Paragraph(f"<b>Key Risk:</b> {opp.key_risk}", styles['RiskText']))
-            
+
             story.append(Spacer(1, 10))
     else:
         story.append(Paragraph("No actionable opportunities identified today.", styles['ScanBodyText']))

@@ -4,9 +4,8 @@ requests>=2.31.0
 python-dotenv>=1.0.0
 pydantic>=2.5.0
 
-# CLI
+# Scanner UI
 rich>=13.7.0
-click>=8.1.0
 
 # PDF Generation (Scanner)
 reportlab>=4.1.0
