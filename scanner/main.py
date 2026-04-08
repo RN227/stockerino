@@ -36,8 +36,20 @@ def load_watchlist() -> dict:
 
 
 def flatten_watchlist(watchlist: dict) -> list:
-    """Flatten sector-grouped watchlist into single list."""
-    return [ticker for tickers in watchlist.values() for ticker in tickers]
+    """Flatten all watchlist keys (including portfolio) into a deduplicated ticker list."""
+    seen = set()
+    result = []
+    for key, tickers in watchlist.items():
+        for ticker in tickers:
+            if ticker not in seen:
+                seen.add(ticker)
+                result.append(ticker)
+    return result
+
+
+def get_portfolio(watchlist: dict) -> list:
+    """Extract portfolio tickers from watchlist."""
+    return watchlist.get("portfolio", [])
 
 
 def run_scan(dry_run: bool = False, verbose: bool = False):
@@ -53,10 +65,13 @@ def run_scan(dry_run: bool = False, verbose: bool = False):
         console.print(f"[bold red]Error:[/bold red] Missing API keys: {', '.join(missing)}")
         sys.exit(1)
     
-    # Load watchlist
+    # Load watchlist and portfolio
     watchlist = load_watchlist()
+    portfolio_tickers = get_portfolio(watchlist)
     all_tickers = flatten_watchlist(watchlist)
-    console.print(f"[dim]Watchlist loaded: {len(all_tickers)} tickers across {len(watchlist)} sectors[/dim]")
+    sector_count = len([k for k in watchlist if k != "portfolio"])
+    portfolio_note = f" | {len(portfolio_tickers)} portfolio holdings" if portfolio_tickers else ""
+    console.print(f"[dim]Watchlist loaded: {len(all_tickers)} tickers across {sector_count} sectors{portfolio_note}[/dim]")
     
     # Run scanners
     console.print("\n[bold cyan]Running Scanners...[/bold cyan]")
@@ -177,7 +192,8 @@ def run_scan(dry_run: bool = False, verbose: bool = False):
         market_context=market_context,
         premarket_movers=premarket_movers,
         macro_warnings=macro_warnings,
-        watchlist=watchlist
+        watchlist=watchlist,
+        portfolio_tickers=portfolio_tickers
     )
     console.print(f"[dim]  Found {len(analysis.top_opportunities)} top opportunities[/dim]")
     
@@ -203,12 +219,17 @@ def run_scan(dry_run: bool = False, verbose: bool = False):
     # Show top opportunities
     if analysis.top_opportunities:
         console.print()
-        console.print(Panel(
-            "\n".join([
-                f"[bold]#{o.rank} {o.ticker}[/bold] - {o.setup_type} (Conviction: {o.conviction}/10)"
+        lines = []
+        for o in analysis.top_opportunities:
+            setup_label = "Day Trade" if o.setup_type == "day_trade" else "Swing"
+            portfolio_tag = " [bold yellow]★ PORTFOLIO[/bold yellow]" if o.is_portfolio else ""
+            horizon_str = f" | {o.time_horizon}" if o.time_horizon else ""
+            lines.append(
+                f"[bold]#{o.rank} {o.ticker}[/bold]{portfolio_tag} — {setup_label}{horizon_str} (Conviction: {o.conviction}/10)"
                 f"\n   {o.catalyst}"
-                for o in analysis.top_opportunities
-            ]),
+            )
+        console.print(Panel(
+            "\n".join(lines),
             title="[bold white]TOP OPPORTUNITIES[/bold white]",
             box=box.ROUNDED,
             border_style="green"

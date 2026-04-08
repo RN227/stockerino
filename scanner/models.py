@@ -45,12 +45,14 @@ class Opportunity(BaseModel):
     rank: int
     ticker: str
     company: str
-    setup_type: str  # Earnings Play, News Catalyst, Momentum Breakout
+    setup_type: str  # "day_trade" or "swing"
+    time_horizon: str = ""  # e.g. "intraday", "2-5 days", "1-3 weeks"
     catalyst: str
     thesis: str
     trade_setup: str
     key_risk: str
     conviction: int  # 1-10
+    is_portfolio: bool = False
 
 
 class WatchlistItem(BaseModel):
